@@ -1,10 +1,10 @@
 # CaseStudy02DDS
 
 ## Introduction to the Project
-Identify top three factors that contribute to job turnover and build a model to predict attrition. Additionally, discern job role specific trends and relevant observations backed by statistical analysis. Lastly, build a second model that predicts monthly salary.
+Identify top three factors that contribute to job turnover and discern job role specific trends as well as relevant observations backed by statistical analysis. Utilize KNN, Naïve Bayes and linear regression to deploy prediction models for attrition and monthly salary.
 
 ## Executive Summary
-Abcdefgh
+Employee retention is a crucial cost-effective measure for businesses in addition to a host of nonfiscal benefits such as morale, productivity, and cultural impact. 
 
 ## Contents
 1. Datasets: Raw data, attrition prediction, salary prediction
