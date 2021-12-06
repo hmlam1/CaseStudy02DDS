@@ -11,4 +11,4 @@ Employee retention is a crucial cost-effective measure for businesses in additio
 4. RMD with supporting codes and analysis
 5. Knitted HTML of RMD
 6. Presentation slides
-7. Link to recorded presentation
+7. [Link](https://smu.zoom.us/rec/play/lLcUdc0OFK4UYyNQdUjTQwZ4m44ImEN6yuNGP1lSVBxBvVIHbvwARTN4Uo7oUSboE2DWhkqQrEvuSXrG.T2MHFEDdrX5Gn_7a) to recorded presentation
