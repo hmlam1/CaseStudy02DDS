@@ -1,4 +1,4 @@
-# CaseStudy02DDS
+# DDS-Case-Study-2: Company Culture and Employee Attrition 
 
 ## Introduction to the Project
 Identify top three factors that contribute to job turnover and discern job role specific trends as well as relevant observations backed by statistical analysis. Utilize KNN, Naïve Bayes and linear regression to deploy prediction models for attrition and monthly salary.
