@@ -5,4 +5,4 @@ Contents:
 2. Attrition test data
 3. Salary test data
 4. Attrition rate predictions
-5. Salary rate predictions
+5. Monthly salary predictions
