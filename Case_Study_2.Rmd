@@ -1,0 +1,488 @@
+---
+title: 'Case Study 02: How Company Culture Affects Employee Attrition'
+author: "Hien Lam"
+date: "11/29/2021"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+[Link](https://smu.zoom.us/rec/play/t3NpeKrQevkA_MjJvBjo6oPiBIf-o6a-1hr8_-W827A8p660_kkl2FYcq9MsEGexBrSqM11syp7hp4-P.g-bGJNedKIH-Aapi) to recorded presentation.
+
+## Read and tidy the data
+
+Load the necessary packages
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(e1071) 
+library(caret)
+library(olsrr)
+library(viridis)
+library(ggridges)
+library(moonBook) 
+library(webr) 
+```
+Read the data
+```{r message=FALSE, warning=FALSE}
+attr <- read_csv('https://raw.githubusercontent.com/hmlam1/DDS-Case-Study-2/main/Datasets/CaseStudy2.csv', show_col_types=F)
+```
+Study the data: 870 rows (observations) and 36 columns (variables). First 10 rows are printed to allow reader to click through the columns.
+```{r}
+dim(attr)
+spec(attr)
+head(attr, n=10)
+```
+Remove columns with single unique value as they are not useful for EDA or prediction
+```{r}
+attr <- attr %>% select(-c('Over18', 'EmployeeCount', 'EmployeeNumber', 'PerformanceRating', 'StandardHours'))
+```
+Confirm that there are zero NA values
+```{r}
+sum(as.numeric(is.na.data.frame(attr)))
+```
+I copied *Attrition* into a new column called *attr10*, replaced "No" with 0 and "Yes" with 1, set class as numeric for aggregate function to calculate attrition percentages.
+```{r}
+attr <- attr %>% mutate(attr10 = Attrition, attr10 = replace(attr10, attr10 != "No", 1))
+attr <- attr %>% mutate(attr10 = replace(attr10, attr10 != "1", 0))
+attr$attr10 <- as.numeric(attr$attr10)
+```
+
+---
+
+## Exploratory Data Analysis
+
+Age
+
+- Distribution is right skewed; possibly log transform prior to modeling    
+- Age vs attrition is very significant; highest between 18-22 at >50%  
+- Age vs job role is significant    
+- Age vs gender and department is about even  
+```{r eval=FALSE}
+# dist of age
+hist(attr$Age, breaks=50, main='Distribution of Age', xlab = 'Age')
+quantile(attr$Age)
+# vs gender, department, job role
+boxplot(Age~Gender, data=attr) # insig
+boxplot(Age~Department, data=attr) # significant ish
+boxplot(Age~JobRole, data=attr) # significant
+```
+Attrition (as it relates to personal self/life)
+
+- 140 attrition, 730 no attrition    
+- vs gender is about even (15% female, 17% male)    
+- Age vs attrition is very significant; highest between 18-22 at >50%    
+- Highest for single marital status at 26%    
+- Increases as distance from home goes up; 15%+ for 12.2+ miles    
+- Increases as education level goes down    
+- Highest for hr 27%, tech degree and marketing 20-23% (edu field)    
+- Highest for sales department at 22%     
+- Highest for sales rep at 45%, hr/lab tech 20-22% (job role)    
+- Highest for lowest job level at 26%    
+- Highest for 5> total working years at 31%    
+- Highest for 5+ number of companies worked all >20
+
+Attrition (as it relates to work culture)  
+
+- Highest for lowest perceived level of job involvement at 47%    
+- Highest for lowest perceived level of work life balance at 35%    
+- Highest for overtime at 32%    
+- Highest for the least (26%) and best (22%) stock option level. Take a closer look    
+- Highest for lowest perceived level of environment satisfaction at 24%    
+- Highest for lowest perceived level of job satisfaction at 21%    
+- Highest for the first 3 years at company. Will exclude this var as it will skew the model bc not all the years have equal representation  
+- Highest for travel frequently for business travel at 22%    
+- Highest for first 2 years in current role at 23%    
+- Highest for lowest relationship satisfaction with manager at 20%    
+- Higher for increasing years since last promotion. Uneven distribution. Probably should not include this in the model   
+- Highest for initial year with current manager however it is skewed for 14 year mark. Either remove that value or don't include variable in model  
+- Inconclusive for training times last year  
+- Inconclusive for percent salary hike. Need to look closer against other variables  
+```{r eval=FALSE}
+# attr count. 0 = "No" 1 = "Yes"
+attr %>% count(Attrition)
+hist(attr$attr10)
+# vs gender. insig
+aggregate(attr10~Gender, data=attr, mean)
+# vs age. sig
+attr.age <- aggregate(x = attr$attr10, by = list(cut(attr$Age, 10)), mean)
+names(attr.age) <- c('Age', 'Attrition')
+ggplot(attr.age, aes(x = Age, y = Attrition)) + geom_bar(stat = "identity")
+# vs marital status. sig
+attr.mar <- aggregate(attr10~MaritalStatus, data=attr, mean)
+ggplot(attr.mar, aes(x = MaritalStatus, y = attr10)) + geom_bar(stat = "identity")
+# vs distance from home. sig
+attr.dist <- aggregate(x = attr$attr10, by = list(cut(attr$DistanceFromHome, 10)), mean)
+names(attr.dist) <- c('dist', 'Attrition')
+ggplot(attr.dist, aes(x = dist, y = Attrition)) + geom_bar(stat = "identity")
+# education level. sig if comparing lowest and highest edu levels
+attr.edu <- aggregate(attr10~Education, data=attr, mean)
+ggplot(attr.edu, aes(x = Education, y = attr10)) + geom_bar(stat = "identity")
+# education field. sig
+attr.eduf <- aggregate(attr10~EducationField, data=attr, mean)
+ggplot(attr.eduf, aes(x = EducationField, y = attr10)) + geom_bar(stat = "identity")
+# total working years. very sig
+hist(log(attr$TotalWorkingYears)) # LOG
+attr.work <- aggregate(x = attr$attr10, by = list(cut(attr$TotalWorkingYears, 8)), mean)
+names(attr.work) <- c('total', 'Attrition')
+ggplot(attr.work, aes(x = total, y = Attrition)) + geom_bar(stat = "identity")
+# number of companies worked. sig
+attr.ncomp <- aggregate(attr10~NumCompaniesWorked, data=attr, mean)
+ggplot(attr.ncomp, aes(x = NumCompaniesWorked, y = attr10)) + geom_bar(stat = "identity")
+# vs department. sig
+attr.dep <- aggregate(attr10~Department, data=attr, mean) 
+ggplot(attr.dep, aes(x = Department, y = attr10)) + geom_bar(stat = "identity")
+# vs job role. very sig
+attr.role <- aggregate(attr10~JobRole, data=attr, mean) 
+ggplot(attr.role, aes(x = JobRole, y = attr10)) + geom_bar(stat = "identity")
+# job level. sig
+attr.level <- aggregate(attr10~JobLevel, data=attr, mean)
+ggplot(attr.level, aes(x = JobLevel, y = attr10)) + geom_bar(stat = "identity")
+```
+
+```{r eval=FALSE}
+# job involvement. very sig
+attr.inv <- aggregate(attr10~JobInvolvement, data=attr, mean)
+ggplot(attr.inv, aes(x = JobInvolvement, y = attr10)) + geom_bar(stat = "identity")
+# job satisfaction. sig
+attr.satis <- aggregate(attr10~JobSatisfaction, data=attr, mean)
+ggplot(attr.satis, aes(x = JobSatisfaction, y = attr10)) + geom_bar(stat = "identity")
+# vs work life balance. very sig
+attr.wlb <- aggregate(attr10~WorkLifeBalance, data=attr, mean)
+ggplot(attr.wlb, aes(x = WorkLifeBalance, y = attr10)) + geom_bar(stat = "identity")
+# years at company. sig but misleading
+attr.yrcomp <- aggregate(x = attr$attr10, by = list(cut(attr$YearsAtCompany, 20)), mean)
+names(attr.yrcomp) <- c('Years', 'Attrition')
+ggplot(attr.yrcomp, aes(x = Years, y = Attrition)) + geom_bar(stat = "identity")
+# years in current role
+attr.yrcur <- aggregate(x = attr$attr10, by = list(cut(attr$YearsInCurrentRole, 9)), mean)
+names(attr.yrcur) <- c('Years', 'Attrition')
+ggplot(attr.yrcur, aes(x = Years, y = Attrition)) + geom_bar(stat = "identity")
+# vs business travel. sig
+attr.travel <- aggregate(attr10~BusinessTravel, data=attr, mean)
+ggplot(attr.travel, aes(x = BusinessTravel, y = attr10)) + geom_bar(stat = "identity")
+# vs environment satisfaction. sig
+attr.env <- aggregate(attr10~EnvironmentSatisfaction, data=attr, mean)
+ggplot(attr.env, aes(x = EnvironmentSatisfaction, y = attr10)) + geom_bar(stat = "identity")
+# vs overtime. very sig
+attr.ot <- aggregate(attr10~OverTime, data=attr, mean)
+ggplot(attr.ot, aes(x = OverTime, y = attr10)) + geom_bar(stat = "identity")
+# vs stock option level.
+attr.stock <- aggregate(attr10~StockOptionLevel, data=attr, mean)
+ggplot(attr.stock, aes(x = StockOptionLevel, y = attr10)) + geom_bar(stat = "identity")
+# vs percent salary hike. insig. might be related to a diff variable
+attr.inc <- aggregate(attr10~PercentSalaryHike, data=attr, mean)
+ggplot(attr.inc, aes(x = PercentSalaryHike, y = attr10)) + geom_bar(stat = "identity")
+# vs years since last promotion. sig but inconsistent
+attr.yrpromo <- aggregate(attr10~YearsSinceLastPromotion, data=attr, mean)
+ggplot(attr.yrpromo, aes(x = YearsSinceLastPromotion, y = attr10)) + geom_bar(stat = "identity")
+# vs training times last year. sig but inconsistent
+attr.train <- aggregate(attr10~TrainingTimesLastYear, data=attr, mean)
+ggplot(attr.train, aes(x = TrainingTimesLastYear, y = attr10)) + geom_bar(stat = "identity")
+# vs years with current manager. sig but inconsistent
+attr.yrman <- aggregate(attr10~YearsWithCurrManager, data=attr, mean)
+ggplot(attr.yrman, aes(x = YearsWithCurrManager, y = attr10)) + geom_bar(stat = "identity")
+# vs relationship satisfaction w manager. barely sig
+attr.mansatis <- aggregate(attr10~RelationshipSatisfaction, data=attr, mean)
+ggplot(attr.mansatis, aes(x = RelationshipSatisfaction, y = attr10)) + geom_bar(stat = "identity")
+```
+
+---
+
+## Analysis
+
+### Identify top three factors that contribute to turnover
+
+1. Overtime  
+2. Years in current role    
+3. Job involvement
+
+Ran logistic regression on the three factors which resulted in 665 AIC,  over 150 points lower than other models that we ran.
+```{r}
+model <- glm(attr10~YearsInCurrentRole+OverTime+JobInvolvement, family=binomial, data=attr) 
+summary(model)
+```
+#### **Overtime**
+
+Of the 71% of employees who do not work overtime, 90% stay. Of the 29% employees to do work overtime, 32% leave.
+
+Set up the dataframe
+```{r}
+ot <- attr %>% select(Attrition, OverTime)
+ot$Attrition <- ifelse(ot$Attrition == 'Yes', 'Attrition', ot$Attrition)
+```
+Plot the pie chart
+```{r warning=FALSE}
+PieDonut(ot,aes(OverTime, Attrition), explode=1,selected=c(1,3),explodeDonut=TRUE, labelposition=1,title="Distribution of Attrition by Overtime")
+```
+
+#### **Years in current role**
+
+22% of employees leave the company in their first 3 years if they retained the same role in that duration.
+
+Half violin plot function
+```{r}
+"%||%" <- function(a, b) {
+  if (!is.null(a)) a else b
+}
+
+geom_flat_violin <- function(mapping = NULL, data = NULL, stat = "ydensity",
+                             position = "dodge", trim = TRUE, scale = "area",
+                             show.legend = NA, inherit.aes = TRUE, ...) {
+  layer(
+    data = data,
+    mapping = mapping,
+    stat = stat,
+    geom = GeomFlatViolin,
+    position = position,
+    show.legend = show.legend,
+    inherit.aes = inherit.aes,
+    params = list(
+      trim = trim,
+      scale = scale,
+      ...
+    )
+  )
+}
+
+#' @rdname ggplot2-ggproto
+#' @format NULL
+#' @usage NULL
+#' @export
+GeomFlatViolin <-
+  ggproto("GeomFlatViolin", Geom,
+          setup_data = function(data, params) {
+            data$width <- data$width %||%
+              params$width %||% (resolution(data$x, FALSE) * 0.9)
+            
+            # ymin, ymax, xmin, and xmax define the bounding rectangle for each group
+            data %>%
+              group_by(group) %>%
+              mutate(ymin = min(y),
+                     ymax = max(y),
+                     xmin = x,
+                     xmax = x + width / 2)
+          },
+          
+          draw_group = function(data, panel_scales, coord) {
+            # Find the points for the line to go all the way around
+            data <- transform(data, xminv = x,
+                              xmaxv = x + violinwidth * (xmax - x))
+            
+            # Make sure it's sorted properly to draw the outline
+            newdata <- rbind(plyr::arrange(transform(data, x = xminv), y),
+                             plyr::arrange(transform(data, x = xmaxv), -y))
+            
+            # Close the polygon: set first and last point the same
+            # Needed for coord_polar and such
+            newdata <- rbind(newdata, newdata[1,])
+            
+            ggplot2:::ggname("geom_flat_violin", GeomPolygon$draw_panel(newdata, panel_scales, coord))
+          },
+          
+          draw_key = draw_key_polygon,
+          
+          default_aes = aes(weight = 1, colour = "grey20", fill = "white", size = 0.5,
+                            alpha = NA, linetype = "solid"),
+          
+          required_aes = c("x", "y")
+  )
+# copied from: https://gist.github.com/dgrtwo/eb7750e74997891d7c20
+# somewhat hackish solution to: https://twitter.com/EamonCaddigan/status/646759751242620928
+# based mostly on copy/pasting from ggplot2 geom_violin source:  https://github.com/hadley/ggplot2/blob/master/R/geom-violin.r
+```
+Plot the data
+```{r}
+ggplot(attr, aes(Attrition, YearsInCurrentRole, fill=Attrition)) +
+    geom_flat_violin() +
+    coord_flip() +
+    labs(title='Distribution of Years in Current Role by Attrition', 
+    x='Attrition', y='Years') +
+    theme(axis.text = element_text(size = 13), axis.title = 
+    element_text(size = 20), plot.title = element_text(size= 20), 
+    legend.title = element_text(size = 15), legend.text = element_text(size 
+    = 13), panel.background = element_blank(), axis.line = 
+    element_line(colour = "black"), legend.position = c(0.93, 0.1)) +
+    scale_fill_brewer(palette='Paired')
+```
+
+#### **Job involvement**
+
+Negative correlation between attrition and job involvement. Employees who self-rate their work as very uninvolved have a 47% attrition rate and just uninvolved goes down to 18%. Conversely, 87% of employees who feel their work is involved stay and significantly goes up to 91% when their work is very involved.
+
+Set up the dataframe: 
+
+1. Calculate the percent of attrition for each level of job involvement
+```{r}
+attr.ji <- attr %>% count(Attrition, JobInvolvement)
+attr.ji <- pivot_wider(attr.ji, names_from = Attrition, values_from = n)
+attr.ji <- attr.ji %>% mutate(sum = rowSums(attr.ji[,c(2:3)]))
+attr.ji <- pivot_longer(attr.ji, c(2:3), names_to='Attrition', values_to = "value")
+attr.ji <- attr.ji %>% mutate(perc=value/sum)
+```
+2. Replace job involvement levels 1:4 with Very Uninvolved: Very Involved
+``` {r}
+attr.ji$JobInvolvement <- ifelse(attr.ji$JobInvolvement == 1, 'Very uninvolved', attr.ji$JobInvolvement)
+attr.ji$JobInvolvement <- ifelse(attr.ji$JobInvolvement == 2, 'Uninvolved', attr.ji$JobInvolvement)
+attr.ji$JobInvolvement <- ifelse(attr.ji$JobInvolvement == 3, 'Involved', attr.ji$JobInvolvement)
+attr.ji$JobInvolvement <- ifelse(attr.ji$JobInvolvement == 4, 'Very involved', attr.ji$JobInvolvement)
+```
+3. Declare the order of levels and set as factor for plotting purpose
+```{r}
+levels <- c('Very uninvolved', 'Uninvolved', 'Involved', 'Very involved')
+attr.ji$JobInvolvement <- factor(attr.ji$JobInvolvement, levels=levels)
+```
+Plot the data
+```{r}
+ggplot(attr.ji, aes(x=JobInvolvement, y=Attrition, fill=perc)) +
+  geom_tile(color = "white", lwd = 1.5, linetype = 1) + geom_text(aes(label 
+  = scales::percent(perc)), color = "slategray4", size = 6) + coord_fixed()+
+  labs(title='Attrition by Job Involvement', x='Job Involvement') + 
+  theme(axis.text = element_text(size = 13), axis.title = element_text(size 
+  = 20), plot.title = element_text(size= 20), legend.title = 
+  element_text(size = 15), legend.text = element_text(size = 13), 
+  panel.background = element_blank(), axis.line = element_line(colour = 
+  "black")) + guides(fill = guide_colourbar(title='Attrition \nPercent', 
+  ticks = FALSE, barwidth = .75, barheight = 20)) +
+  scale_fill_viridis(option='F', begin=.2, direction=-1)
+```
+
+### Identify job role trends
+
+Display monthly salary for each role and their attrition rate. Attrition is high for lower salary. This does not surprise us but is there another driving force? Display the rate of lowest job satisfaction for each job role. We concluded that higher paying roles have higher dissatisfaction yet lower attrition rate thus salary is the biggest driver behind attrition for job roles.
+
+Set up dataframe
+```{r}
+role <- attr %>% select(attr10, JobRole, JobSatisfaction, MonthlyIncome)
+role.attr <- aggregate(attr10~JobRole, data=role, mean)
+role.attr <- arrange(role.attr, attr10)
+levels <- role.attr$JobRole
+role$JobRole <- factor(role$JobRole, levels = levels)
+role.attr
+```
+Plot monthly income by job role
+```{r message=FALSE}
+ggplot(role, aes(x = MonthlyIncome, y = JobRole, fill = stat(x))) +
+  geom_density_ridges_gradient(scale = 2.5, rel_min_height = 0.01) +
+  scale_fill_viridis(name = "Monthly Income", option = "F", direction=-1, 
+  begin=.15, end=.9) + labs(title='Job Role by Monthly Income', subtitle = 
+  'Ordered by Decreasing Attrition Rate', x='Monthly Income', y='Job Role')+
+  theme(axis.text = element_text(size = 13), axis.title = element_text(size 
+  = 20), plot.title = element_text(size= 20), legend.title = 
+  element_text(size = 15), legend.text = element_text(size = 13), 
+  panel.background = element_blank(), axis.line = element_line(colour = 
+  "black"))
+```
+
+Job satisfaction: Replace all 1 with Very Unsatisfied, 2 Unsatisfied, 3 Satisfied, 4 Very Satisfied
+```{r}
+role$JobSatisfaction <- ifelse(role$JobSatisfaction == 1, 'Very unsatisfied', role$JobSatisfaction)
+role$JobSatisfaction <- ifelse(role$JobSatisfaction == 2, 'Unsatisfied', role$JobSatisfaction)
+role$JobSatisfaction <- ifelse(role$JobSatisfaction == 3, 'Satisfied', role$JobSatisfaction)
+role$JobSatisfaction <- ifelse(role$JobSatisfaction == 4, 'Very satisfied', role$JobSatisfaction)
+```
+Calculate rate of lowest job satisfaction by job role
+```{r}
+role.satis <-  role %>% count(JobSatisfaction, JobRole)
+role.satis <- pivot_wider(role.satis, names_from = JobSatisfaction, values_from = n)
+role.satis <- role.satis %>% mutate(sum = rowSums(role.satis[,c(2:5)], na.rm=TRUE), perc=`Very unsatisfied`/sum)
+arrange(role.satis, -perc)
+```
+
+---
+
+## Prediction
+
+### Conduct naive bayes to predict attrition rate
+
+Build the model using the full data then validate model with 75/25 split of train/test. Benchmark to reach is 60% sensitivity, 60% specificity, and significant p-value of below alpha = .05. Used provided dataset that did not include attrition result to predict attrition rate and export results to be submitted.
+
+1. Variables set as factor
+```{r}
+attr$Attrition <- as.factor(attr$Attrition)
+attr$OverTime <- as.factor(attr$OverTime)
+#attr$JobInvolvement <- as.factor(attr$JobInvolvement)
+#attr$JobLevel <- as.factor(attr$JobLevel)
+#attr$WorkLifeBalance <- as.factor(attr$WorkLifeBalance)
+attr$EnvironmentSatisfaction<- as.factor(attr$EnvironmentSatisfaction)
+#attr$StockOptionLevel<- as.factor(attr$StockOptionLevel)
+attr$Education <- as.factor(attr$Education)
+#attr$JobSatisfaction <- as.factor(attr$JobSatisfaction)
+attr$RelationshipSatisfaction<- as.factor(attr$RelationshipSatisfaction)
+attr$EducationField <- as.factor(attr$EducationField)
+attr$Department <- as.factor(attr$Department)
+attr$JobRole <- as.factor(attr$JobRole)
+attr$MaritalStatus <- as.factor(attr$MaritalStatus)
+attr$BusinessTravel <- as.factor(attr$BusinessTravel)
+attr$Gender <- as.factor(attr$Gender)
+```
+2. Build the Naive Bayes model using all the variables excluding the 12 listed
+```{r}
+set.seed(80)
+nb <- naiveBayes(Attrition~.-ID-Attrition-BusinessTravel-DailyRate-HourlyRate-MonthlyRate-Education-EducationField-Gender-YearsWithCurrManager-YearsAtCompany-YearsSinceLastPromotion, data = attr)
+p <- predict(nb, attr)
+cm <- confusionMatrix(p, attr$Attrition, positive = 'Yes')
+c(cm$overall['Accuracy'], cm$overall['AccuracyPValue'], cm$byClass[1], cm$byClass[2])
+```
+3. Validate the model with 75/25 train/test split
+```{r}
+model.attr <- sample(1:nrow(attr), round(.75*nrow(attr)))
+train.attr <- attr[model.attr,]
+test.attr <- attr[-model.attr,]
+
+nb.train <- naiveBayes(Attrition~.-ID-Attrition-BusinessTravel-DailyRate-HourlyRate-MonthlyRate-Education-EducationField-Gender-YearsWithCurrManager-YearsAtCompany-YearsSinceLastPromotion, data = train.attr)
+p.train <- predict(nb.train, test.attr)
+cm.test <- confusionMatrix(p.train, test.attr$Attrition, positive = 'Yes')
+c(cm.test$overall['Accuracy'], cm.test$overall['AccuracyPValue'], cm.test$byClass[1], cm.test$byClass[2])
+```
+4. Predict attrition with provided data that does not include attrition result
+
+Read in the data
+```{r message=FALSE, warning=FALSE, eval=FALSE}
+train.attr <- read_csv('https://raw.githubusercontent.com/hmlam1/DDS-Case-Study-2/main/Datasets/CaseStudy2AttritionTest.csv', show_col_types=F)
+```
+Predict attrition and export
+```{r eval=FALSE}
+p.attr <- predict(nb, newdata = train.attr)
+p.attr.df <- data.frame(ID = train.attr$ID, Attrition = p.attr)
+write.csv(p.attr.df,"C:\\Users\\hienl\\Case2PredictionsLamDernerAttrition.csv", row.names = FALSE)
+```
+
+### Conduct linear regression to predict monthly salary
+
+Build the model using the full data then validate model with 70/30 split of train/test. Benchmark to reach is RMSE <3000 and adequate adjusted R^2. Used provided dataset that did not include attrition result to predict attrition rate and export results to be submitted.
+
+1. Build the model using job level, job role, and total working years
+```{r}
+set.seed(100)
+fit.sal <- lm(MonthlyIncome~TotalWorkingYears+JobLevel+JobRole, data=attr)
+summary(fit.sal)
+ols_regress(MonthlyIncome~TotalWorkingYears+JobLevel+JobRole, data=attr)
+c(RMSE = 1062.757, R2=summary(fit.sal)$r.squared)
+```
+2. Validate the model with 70/30 train/test split
+```{r}
+model <- sample(1:nrow(attr), round(.7*nrow(attr)))
+train <- attr[model,]
+test <- attr[-model,]
+
+fit.sal.train <- lm(MonthlyIncome~TotalWorkingYears+JobLevel+JobRole, data=train)
+summary(fit.sal.train)
+
+p.test <- predict(fit.sal.train, newdata=test, type='response')
+error <- test$MonthlyIncome-p.test
+rmse <- sqrt(mean(error^2))
+c(RMSE = rmse, R2=summary(fit.sal.train)$r.squared)
+```
+3. Predict attrition with provided data that does not include monthly salary result
+
+Read the train data
+```{r message=FALSE, warning=FALSE, eval=FALSE}
+train.salary <- read_csv('https://raw.githubusercontent.com/hmlam1/DDS-Case-Study-2/main/Datasets/CaseStudy2SalaryTest.csv', show_col_types = F)
+```
+Predict salary and export
+```{r eval=FALSE}
+p.salary <- predict(fit.sal, newdata = train.salary, type = 'response')
+p.sal.df <- data.frame(ID = train.salary$ID, MonthlyIncome = p.salary)
+write.csv(p.sal.df,"C:\\Users\\hienl\\Case2PredictionsLamDernerSalary.csv", row.names = FALSE)
+```
