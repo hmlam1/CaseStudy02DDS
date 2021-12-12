@@ -12,3 +12,4 @@ Employee retention is a crucial cost-effective measure for businesses in additio
 3. Datasets: Raw data, attrition test, salary test, attrition prediction, salary prediction
 4. Presentation slides
 5. [Link](https://smu.zoom.us/rec/play/g8rvMppOoDlz6wd68edFJ3d3KKcOpzB2oUVZTa65NleSaWX0Bg17VPd_GoRrGq1zKjWo6wvvh2_GvjGS.mSQlFoOsMm_04Lto) to recorded presentation
+6. [Link](https://hmlam1.github.io/) to GitHub website
