@@ -11,4 +11,4 @@ Employee retention is a crucial cost-effective measure for businesses in additio
 2. Knitted HTML of RMD
 3. Datasets: Raw data, attrition test, salary test, attrition prediction, salary prediction
 4. Presentation slides
-5. [Link](https://smu.zoom.us/rec/play/n4I_gxBul9x6l0eqhvpHsmFpAwzIzmpcFZ3wRvy7FUutJ_6SSmRVyWtLGUXYXvzTOOIcFhxcNsnJwnIH.r2k03etIa08uOa87) to recorded presentation
+5. [Link](https://smu.zoom.us/rec/play/g8rvMppOoDlz6wd68edFJ3d3KKcOpzB2oUVZTa65NleSaWX0Bg17VPd_GoRrGq1zKjWo6wvvh2_GvjGS.mSQlFoOsMm_04Lto) to recorded presentation
